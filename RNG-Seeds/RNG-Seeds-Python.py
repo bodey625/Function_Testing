@@ -24,10 +24,10 @@ while True:
         print("Exiting program")
         break
 
-        # Option 1: 
+        # Option 1: Allows User to Set Seed
     if userInput[0] == "1":
-        if userInput[1:]:
-            newSeed = userInput[1:]
+        if userInput[2:]:
+            newSeed = userInput[2:]
         else:
             print("Enter your seed:")
             newSeed = input()
@@ -35,11 +35,12 @@ while True:
         rng.seed(newSeed)
         seed = newSeed
 
+        # Option 2: Allows user to print out random values, up to x default 1
     if userInput[0] == "2":
         x = 1
         if userInput[1:]: 
             try: 
-                x = int(userInput[1:])
+                x = int(userInput[2:])
             except ValueError:
                 print("Oi! use an integer. defaulting to 1")
 
