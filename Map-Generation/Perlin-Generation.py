@@ -25,6 +25,12 @@ def lerp(t, a, b):
 # Smoothstep: return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
 # or Smootherstep: return (a1 - a0) * ((w * (w * 6.0 - 15.0) + 10.0) * w * w * w) + a0;
 
+"""where t is the weight (current value), a is the min value, and b is the max value"""
+def inverseLerp(t, a, b):
+
+    return (t - a) / (b - a)
+
+
 
 # Gradient function to calculate dot product of the distance and gradient vectors
 def grad(hash, x, y):
@@ -65,7 +71,7 @@ def perlin(x, y, perm):
 
 
 # This is the function that actually creates the perlin map
-def generate_perlin_noise_map(width: int, height: int, scale: float, seed: int):
+def generate_perlin_noise_map(width: int, height: int, scale: float, seed: int, octaves: int, persistance: float, lacunarity: float):
     # Initialize the random number generator
     random.seed(seed)
 
@@ -77,14 +83,38 @@ def generate_perlin_noise_map(width: int, height: int, scale: float, seed: int):
     # Initialize a 2D array to store the noise values
     world = [[0 for _ in range(width)] for _ in range(height)]
 
+    minNoiseHeight = float('inf')
+    maxNoiseHeight = float('-inf')
+
     # Generate noise values for each cell in the 2D array
     for y in range(height):
         for x in range(width):
-            # Normalize coordinates to the scale
-            nx = x / scale
-            ny = y / scale
-            # Generate Perlin noise value for the current coordinates
-            world[y][x] = perlin(nx, ny, perm)
+
+            amplitude = 1.0
+            frequency = 1.0
+            noiseHeight = 0.0
+
+            for _ in range(octaves):
+                 # Normalize coordinates to the scale
+                nx = x / scale * frequency
+                ny = y / scale * frequency
+                # Generate Perlin noise value for the current coordinates
+                #       world[y][x] = perlin(nx, ny, perm)
+                perlinValue = perlin(nx, ny, perm) * 2 - 1   # * 2 - 1 allows for negative values so that it may decrease
+                noiseHeight += perlinValue * amplitude
+                amplitude *= persistance
+                frequency *= lacunarity
+
+            if noiseHeight > maxNoiseHeight:
+                maxNoiseHeight = noiseHeight
+            elif noiseHeight < minNoiseHeight:
+                minNoiseHeight = noiseHeight
+            world[y][x] = noiseHeight
+
+    # normalize values before adding to map
+    for y in range(height):
+        for x in range(width):
+            world[y][x] = inverseLerp(world[y][x], minNoiseHeight, maxNoiseHeight)
     return world
 
 
@@ -103,37 +133,69 @@ def map_to_image(map_grid):
         for x in range(width):
             value = map_grid[y][x]
 
-             # Determine color based on noise value, range [0.0, 1.0]:
-            if value < 0:  # Adjust the threshold for water/land
-                color = (255, 255, 255) # (0, 0, 255)  # Water, blue 
-            # elif value < .2:
-            #     color = (150, 150, 150) # (34, 139, 34)  # Land, Green
-            # elif value < .4:
-            #     color = (75, 75, 75)
-            # elif value < .6:
-            #     color = (50, 50, 50)
-            # elif value < .8:
-            #     color = (25, 25 ,25)  
-            else: 
-                color = (0, 0, 0) # Mountain?
+            colorSet_1 = [(0, 0, 0), (255, 255, 255), (150, 150, 150), (75, 75, 75), (50, 50, 50), (25, 25, 25)] # greyscale
+            colorSet_2 = [(0, 0, 0), (0, 0, 255), (25, 150, 255), (200, 175, 50), (34, 200, 34), (34, 139, 34)] # Good land gradient from sea to forest
+            #               Black     Pure Blue       Teal            Yellow       light Green     Deep Green
+            colorSet_3 = [(0, 0, 0), (0, 0, 255), (25, 150, 255), (34, 200, 34), (34, 200, 34), (34, 139, 34)] # Mostly land
 
-            # put the color on the image at that point
+            # o:4 p:0.5 l:1.5   wow, you can really tell that most of the space here is taken up by colorset[3]. unfortunately, thats also just sand.
+            # seems to be a fairly common theme. might be good to break up the <.6 with < .5
+
+
+            colorset = colorSet_2
+            #  # Determine color based on noise value, range [0.0, 1.0]:
+
+            if value < .2:
+                color = colorset[1] # (34, 139, 34)  # Land, Green
+            elif value < .4:
+                color = colorset[2]
+            elif value < .6:
+                color = colorset[3]
+            elif value < .8:
+                color = colorset[4]
+            else: 
+                color = colorset[5] # Mountain?
+
+
             draw.point((x, y), fill=color)
     
     return image
 
 
-def main(seed: str, width: int, height: int):
+def main(seed: str, width: int, height: int, octaves: int, persistance: float, lacunarity: float):
     initialize_rng(seed)
-    scale = 10.0  # Adjust the scale to change the zoom level of the noise
+    scale = 10  # Adjust the scale to change the zoom level of the noise
     seed_int = random.randint(0, 100)
     
-    map_grid = generate_perlin_noise_map(width, height, scale, seed_int)
+    map_grid = generate_perlin_noise_map(width, height, scale, seed_int, octaves, persistance, lacunarity)
     image = map_to_image(map_grid)
     image.show()
 
 # Entry point, initialize base values
 if __name__ == "__main__":
-    seed = "your_seed_string"
-    width, height = 1000, 1000  # Set desired map dimensions
-    main(seed, width, height)
+    seed = "RTGAME"
+    width, height = 512, 512  # Set desired map dimensions
+
+    octaves = 4 # seems to affect zoom
+    persistance = 2.0 # almost feels like an increase in resolution
+    lacunarity = 0.25  # seems to increase sharpness
+
+        # TV static: o:4 p:2.0 l:3.0
+        # low l seems promising, around 0.25 maybe
+        # enjoying the natural effect of o:8 p:3.0 l:0.25
+
+        # scale 10 512 x 512 "Astley"  5  3.0  0.25 seems to have almost islands, i like this one.
+        # scale 5 is also nice on that
+
+    main(seed, width, height, octaves, persistance, lacunarity)
+
+
+
+# This script has quite a few issues i can identify, some of which you might not even classify as issues typically.
+# - adjusting the width, height, scale of the map can result in a change in the geography simply as a result of how normalizing map values is handled. 
+#       in this implementation, increasing the width, height, or scale results in more or different pixels being measured, and our normalization values 
+#       are set based on the min and the max value of those detected. so if you like how something looks and want the surroundings too, too bad.
+#       (octaves also included in causing this, but octaves are something that is actually intended to change the function, so... )
+# - Could also do to have a x and y offset function to solve that issue. this script is worse for not having one
+# - This script would do better to be continually updated as you adjust the values, and for that purpose it would be best to move it into unity or unreal
+# - Overall this script is a bit of a mess, and id like to come back to it and do it different. that will probably take place in unity
