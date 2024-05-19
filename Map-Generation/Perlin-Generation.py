@@ -13,8 +13,8 @@ def initialize_rng(seed: str):
 
 
 
-# Fade function to smooth the interpolation
-def fade(t):
+# SmoothStep function to smooth the kinks in the lerp function
+def SmoothStep(t):
     return t * t * t * (t * (t * 6 - 15) + 10)
 
 # Linear interpolation function (creating points in between existing points to refine the resolution of the graph)
@@ -25,10 +25,12 @@ def lerp(t, a, b):
 # Smoothstep: return (a1 - a0) * (3.0 - w * 2.0) * w * w + a0;
 # or Smootherstep: return (a1 - a0) * ((w * (w * 6.0 - 15.0) + 10.0) * w * w * w) + a0;
 
-"""where t is the weight (current value), a is the min value, and b is the max value"""
+# where t is the weight (current value), a is the min value, and b is the max value
 def inverseLerp(t, a, b):
-
-    return (t - a) / (b - a)
+    try:
+        return (t - a) / (b - a)
+    except ZeroDivisionError:
+        return 1
 
 
 
@@ -54,9 +56,9 @@ def perlin(x, y, perm):
     xfloat = x - int(x)
     yfloat = y - int(y)
 
-    # Compute fade curves for x and y
-    u = fade(xfloat)
-    v = fade(yfloat)
+    # Compute SmoothStep curves for x and y
+    u = SmoothStep(xfloat)
+    v = SmoothStep(yfloat)
 
     # Hash coordinates of the 4 grid corners
     aa = perm[perm[xint] + yint]
@@ -133,21 +135,22 @@ def map_to_image(map_grid):
         for x in range(width):
             value = map_grid[y][x]
 
-            colorSet_1 = [(0, 0, 0), (255, 255, 255), (150, 150, 150), (75, 75, 75), (50, 50, 50), (25, 25, 25)] # greyscale
-            colorSet_2 = [(0, 0, 0), (0, 0, 255), (25, 150, 255), (200, 175, 50), (34, 200, 34), (34, 139, 34)] # Good land gradient from sea to forest
-            #               Black     Pure Blue       Teal            Yellow       light Green     Deep Green
-            colorSet_3 = [(0, 0, 0), (0, 0, 255), (25, 150, 255), (34, 200, 34), (34, 200, 34), (34, 139, 34)] # Mostly land
+            colorSet_1 = [(0, 0, 0), (25, 25, 25), (50, 50, 50), (75, 75, 75), (150, 150, 150), (255, 255, 255)] # greyscale
+            colorSet_2 = [(0, 0, 255), (25, 150, 255), (200, 175, 50), (34, 200, 34), (34, 139, 34), (100, 100, 100)] # Good land gradient from sea to forest
+            #              Pure Blue       Teal            Yellow       light Green     Deep Green
 
             # o:4 p:0.5 l:1.5   wow, you can really tell that most of the space here is taken up by colorset[3]. unfortunately, thats also just sand.
             # seems to be a fairly common theme. might be good to break up the <.6 with < .5
 
 
-            colorset = colorSet_2
-            #  # Determine color based on noise value, range [0.0, 1.0]:
+            colorset = colorSet_1
 
+            #  # Determine color based on noise value, range [0.0, 1.0]:
             if value < .2:
-                color = colorset[1] # (34, 139, 34)  # Land, Green
+                color = colorset[0] # (34, 139, 34)  # Land, Green
             elif value < .4:
+                color = colorset[1]
+            elif value < .5:
                 color = colorset[2]
             elif value < .6:
                 color = colorset[3]
@@ -156,15 +159,13 @@ def map_to_image(map_grid):
             else: 
                 color = colorset[5] # Mountain?
 
-
             draw.point((x, y), fill=color)
     
     return image
 
 
-def main(seed: str, width: int, height: int, octaves: int, persistance: float, lacunarity: float):
+def main(seed: str, scale: int, width: int, height: int, octaves: int, persistance: float, lacunarity: float):
     initialize_rng(seed)
-    scale = 10  # Adjust the scale to change the zoom level of the noise
     seed_int = random.randint(0, 100)
     
     map_grid = generate_perlin_noise_map(width, height, scale, seed_int, octaves, persistance, lacunarity)
@@ -173,29 +174,27 @@ def main(seed: str, width: int, height: int, octaves: int, persistance: float, l
 
 # Entry point, initialize base values
 if __name__ == "__main__":
-    seed = "RTGAME"
+    seed = "Astley" # Case sensitive!
+    scale = 40  # Adjust the scale to change the zoom level of the noise
     width, height = 512, 512  # Set desired map dimensions
 
-    octaves = 4 # seems to affect zoom
-    persistance = 2.0 # almost feels like an increase in resolution
-    lacunarity = 0.25  # seems to increase sharpness
+    octaves = 4 # seems to affect zoom, actually effectively halves the length of a cell, creating more detail
+    persistance = .5 # reduces the strength each successive octave has on the last (reccommend < 1)
+    lacunarity = 2.0  # determines octave scaling. (4 octaves with lacu. of 2.0 is 4 layers, each at half the size as the last)
 
-        # TV static: o:4 p:2.0 l:3.0
-        # low l seems promising, around 0.25 maybe
-        # enjoying the natural effect of o:8 p:3.0 l:0.25
 
-        # scale 10 512 x 512 "Astley"  5  3.0  0.25 seems to have almost islands, i like this one.
-        # scale 5 is also nice on that
-
-    main(seed, width, height, octaves, persistance, lacunarity)
+    main(seed, scale, width, height, octaves, persistance, lacunarity)
 
 
 
-# This script has quite a few issues i can identify, some of which you might not even classify as issues typically.
-# - adjusting the width, height, scale of the map can result in a change in the geography simply as a result of how normalizing map values is handled. 
-#       in this implementation, increasing the width, height, or scale results in more or different pixels being measured, and our normalization values 
-#       are set based on the min and the max value of those detected. so if you like how something looks and want the surroundings too, too bad.
-#       (octaves also included in causing this, but octaves are something that is actually intended to change the function, so... )
-# - Could also do to have a x and y offset function to solve that issue. this script is worse for not having one
+# This script has a few issues i can identify, some of which you might not even classify as issues typically.
+# - this script should have a x and y offset function to scroll through the map, and is worse for not having one
 # - This script would do better to be continually updated as you adjust the values, and for that purpose it would be best to move it into unity or unreal
-# - Overall this script is a bit of a mess, and id like to come back to it and do it different. that will probably take place in unity
+# - if you zoom far enough in, the normalization function will start changing geography
+#       (Limited effect at all levels of scale, but destroys consistent geography above scale = 200)
+# - Scale zooms in on top left corner, center would be better
+# - Overall this script is a bit of a mess, and id like to come back and clean it up
+#
+#
+#   TODO: We should rebulid this and test as we build. this video is a good resource:
+#   https://www.youtube.com/watch?v=ZsEnnB2wrbI&list=TLPQMTkwNTIwMjR67wN7pfENKA
