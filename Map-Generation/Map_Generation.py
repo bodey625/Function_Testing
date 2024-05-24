@@ -1,6 +1,7 @@
 import random
 from PIL import Image, ImageDraw
 
+
 def initialize_rng(seed: str):
     random.seed(seed)
 

@@ -72,7 +72,7 @@ def perlin(x, y, perm):
     return lerp(v, x1, x2)
 
 
-# This is the function that actually creates the perlin map
+# This is the function that actually creates the perlin map ( takes in the input parameters, outputs a 2d value array)
 def generate_perlin_noise_map(width: int, height: int, scale: float, seed: int, octaves: int, persistance: float, lacunarity: float):
     # Initialize the random number generator
     random.seed(seed)
@@ -137,9 +137,9 @@ def map_to_image(map_grid):
 
             colorSet_1 = [(0, 0, 0), (25, 25, 25), (50, 50, 50), (75, 75, 75), (150, 150, 150), (255, 255, 255)] # greyscale
             colorSet_2 = [(0, 0, 255), (25, 150, 255), (200, 175, 50), (34, 200, 34), (34, 139, 34), (100, 100, 100)] # Good land gradient from sea to forest
-            #              Pure Blue       Teal            Yellow       light Green     Deep Green
+            #              Pure Blue       Teal            Yellow       light Green     Deep Green    Mountain Grey
 
-            # o:4 p:0.5 l:1.5   wow, you can really tell that most of the space here is taken up by colorset[3]. unfortunately, thats also just sand.
+            # wow, you can really tell that most of the space here is taken up by colorset[3]. unfortunately, thats also just sand.
             # seems to be a fairly common theme. might be good to break up the <.6 with < .5
 
 
@@ -167,10 +167,11 @@ def map_to_image(map_grid):
 def main(seed: str, scale: int, width: int, height: int, octaves: int, persistance: float, lacunarity: float):
     initialize_rng(seed)
     seed_int = random.randint(0, 100)
+
     
     map_grid = generate_perlin_noise_map(width, height, scale, seed_int, octaves, persistance, lacunarity)
-    image = map_to_image(map_grid)
-    image.show()
+    return map_to_image(map_grid)
+
 
 # Entry point, initialize base values
 if __name__ == "__main__":
@@ -183,7 +184,14 @@ if __name__ == "__main__":
     lacunarity = 2.0  # determines octave scaling. (4 octaves with lacu. of 2.0 is 4 layers, each at half the size as the last)
 
 
-    main(seed, scale, width, height, octaves, persistance, lacunarity)
+    main(seed, scale, width, height, octaves, persistance, lacunarity).show()
+
+
+def gui_integration(seed: str, scale: int, width: int, height: int, octaves: int, persistance: float, lacunarity: float):
+    initialize_rng(seed)
+    seed_int = random.randint(0, 100)
+
+    return generate_perlin_noise_map(width, height, scale, seed_int, octaves, persistance, lacunarity)
 
 
 
